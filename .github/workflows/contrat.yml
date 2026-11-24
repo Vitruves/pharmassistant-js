@@ -1,0 +1,27 @@
+name: Contrat de l'API
+
+# Chaque lundi : le paquet face au schéma OpenAPI de l'API en service.
+# Rouge = l'API a évolué, le paquet doit suivre.
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contrat:
+    name: Schéma OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run contrat

@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    name: Types, tests, construction
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Types (sources et tests)
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Construction
+        run: npm run build
+      - name: Paquet publiable (publint)
+        run: npx publint
+      - name: Types en ESM et CommonJS (attw)
+        run: npx attw --pack .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  node:
+    name: Node ${{ matrix.node }}
+    needs: verifier
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Paquet construit, import et require
+        run: node test/fumee.mjs && node test/fumee.cjs
+
+  bun:
+    name: Bun
+    needs: verifier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2.2.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Paquet construit, import et require
+        run: bun test/fumee.mjs && bun test/fumee.cjs
+
+  deno:
+    name: Deno
+    needs: verifier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: v2.x
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Paquet construit, sans permission d'environnement
+        run: deno run --allow-read test/fumee.mjs
